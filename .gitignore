@@ -3,3 +3,5 @@ venv/
 venv/
 __apache__/
 *.pyc
+debug_*.py
+*_debug.html
