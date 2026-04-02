@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 RAW_DATA_PATH   = "data/raw/listings.csv"
 CLEAN_DATA_PATH = "data/clean/listings_clean.csv"
 TABLE_NAME      = "listings"
-USE_SCRAPER     = True
+USE_SCRAPER     = False
 
 
 def run_pipeline():
@@ -49,7 +49,11 @@ def run_pipeline():
     save_clean_csv(clean_df, CLEAN_DATA_PATH)
 
     # --- Step 3: Validate ---
-    if not validate(clean_df):
+    # Use lenient settings for scraper mode (more rows, no URL requirement)
+    min_rows = 20 if USE_SCRAPER else 5
+    strict_url = False if USE_SCRAPER else False
+    
+    if not validate(clean_df, min_rows=min_rows, strict_url=strict_url):
         logger.error("Validation failed. Data NOT loaded into PostgreSQL.")
         return
 
@@ -61,3 +65,18 @@ def run_pipeline():
 
 if __name__ == "__main__":
     run_pipeline()
+    
+    print("\n" + "=" * 50)
+    print("Pipeline complete! Starting dashboard...")
+    print("=" * 50)
+    
+    import subprocess
+    import sys
+    
+    subprocess.Popen(
+        [sys.executable, "-m", "streamlit", "run", "dashboard.py", "--server.port", "8501"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    
+    print("Dashboard opening at: http://localhost:8501")

@@ -6,7 +6,7 @@ Two-pass scraper for Avito.ma real estate listings.
 Pass 1: Collect listing URLs from search result pages (JSON-LD on search pages)
 Pass 2: Visit each listing's detail page to extract full data (JSON-LD on detail pages)
 
-This two-pass approach gives us rich data including surface area, rooms,
+This two-pass approach gives us rich data including surface area,
 listing type, and seller type — fields not available on search result pages.
 """
 
@@ -141,27 +141,44 @@ def scrape_listing_detail(driver: webdriver.Chrome, url: str) -> dict:
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
 
-        # Find the listing JSON-LD block — skip BreadcrumbList
+        # Find the listing JSON-LD block — look for Product type (has seller data)
         data = None
         for script in soup.find_all("script", {"type": "application/ld+json"}):
             try:
                 parsed = json.loads(script.string)
-                # BreadcrumbList is navigation data — not what we want
-                if parsed.get("@type") != "BreadcrumbList":
+                # Product type has seller data — this is what we want
+                if parsed.get("@type") == "Product":
                     data = parsed
                     break
             except (json.JSONDecodeError, AttributeError):
                 continue
+        
+        # Extract seller info from JavaScript variables in page source
+        import re
+        seller_name = None
+        seller_type = None
+        
+        page_source = driver.page_source
+        seller_match = re.search(r'"seller_name"\s*:\s*"([^"]+)"', page_source)
+        if seller_match:
+            seller_name = seller_match.group(1)
+        
+        type_match = re.search(r'"seller_type"\s*:\s*"([^"]+)"', page_source)
+        if type_match:
+            seller_type_raw = type_match.group(1)
+            seller_type = "Particulier" if seller_type_raw == "private" else "Agence"
+        
+        # Try to extract surface from JSON-LD
+        surface_from_js = data.get("floorSize", {}).get("value") if isinstance(data.get("floorSize"), dict) else None
 
         if not data:
             return None
 
         # --- Basic fields from JSON-LD ---
         title       = data.get("name")
-        description = data.get("description", "")[:300]
+        description = data.get("description", "")[:1000]
         price       = data.get("offers", {}).get("price")
         currency    = data.get("offers", {}).get("priceCurrency", "DH")
-        seller_name = data.get("offers", {}).get("seller", {}).get("name")
 
         # Skip listings with no title or price — not worth storing
         if not title or price is None:
@@ -184,19 +201,15 @@ def scrape_listing_detail(driver: webdriver.Chrome, url: str) -> dict:
             listing_type = "Vente"
 
         # --- Detect seller type (agency vs private) ---
-        if seller_name:
-            seller_type = (
-                "Particulier"
-                if seller_name.lower() == "particulier"
-                else "Agence"
-            )
-        else:
-            seller_type = None
+        # seller_name and seller_type are extracted from page JS above
 
-        # --- Extract surface area and rooms from description text ---
-        # Avito doesn't always expose these in JSON — we parse the description
+        # --- Extract surface area ---
+        # Try description first, then JSON-LD
         surface_m2 = extract_surface_from_text(description)
-        rooms      = extract_rooms_from_text(description)
+        
+        # Fallback to JSON-LD values if description parsing failed
+        if surface_m2 is None and surface_from_js:
+            surface_m2 = surface_from_js
 
         return {
             "title":        title,
@@ -204,7 +217,6 @@ def scrape_listing_detail(driver: webdriver.Chrome, url: str) -> dict:
             "price":        price,
             "currency":     currency,
             "surface_m2":   surface_m2,
-            "rooms":        rooms,
             "listing_type": listing_type,
             "seller_name":  seller_name,
             "seller_type":  seller_type,
@@ -248,32 +260,6 @@ def extract_surface_from_text(text: str):
 
     return None
 
-
-def extract_rooms_from_text(text: str):
-    """
-    Extract number of rooms from a listing description.
-
-    Handles common Avito patterns:
-        "3 chambres"  /  "4 pièces"  /  "F3"
-    """
-    if not text:
-        return None
-
-    patterns = [
-        r"(\d+)\s*chambres?",
-        r"(\d+)\s*pièces?",
-        r"\bF(\d+)\b",
-        r"(\d+)\s*rooms?",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text.lower())
-        if match:
-            value = int(match.group(1))
-            if 1 <= value <= 20:        # Sanity check
-                return value
-
-    return None
 
 # ---------------------------------------------------------------------------
 # MAIN ORCHESTRATOR

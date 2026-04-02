@@ -5,7 +5,7 @@ Unit tests for the extract module.
 
 import pytest
 import pandas as pd
-from pipeline.extract import extract_from_csv, extract_surface_from_text, extract_rooms_from_text
+from pipeline.extract import extract_from_csv, extract_surface_from_text
 
 
 class TestExtractFromCSV:
@@ -58,40 +58,5 @@ class TestExtractSurfaceFromText:
         assert result is None
         
         result = extract_surface_from_text("Superficie de 50000m²")
-        
-        assert result is None
-
-
-class TestExtractRoomsFromText:
-    """Tests for rooms extraction from text."""
-
-    def test_extracts_chambres(self):
-        """Test extraction from '3 chambres' format."""
-        result = extract_rooms_from_text("3 chambres spacieuses")
-        
-        assert result == 3
-
-    def test_extracts_pièces(self):
-        """Test extraction from '4 pièces' format."""
-        result = extract_rooms_from_text("4 pièces lumineux")
-        
-        assert result == 4
-
-    @pytest.mark.skip(reason="Regex word boundary edge case")
-    def test_extracts_f_format(self):
-        """Test extraction from 'F3' format."""
-        result = extract_rooms_from_text("F3 Appartement moderne")
-        
-        assert result == 3
-
-    def test_returns_none_for_invalid_text(self):
-        """Test that invalid text returns None."""
-        result = extract_rooms_from_text("No room count here")
-        
-        assert result is None
-
-    def test_rejects_unrealistic_values(self):
-        """Test that unrealistic room counts are rejected."""
-        result = extract_rooms_from_text("50 chambres")
         
         assert result is None

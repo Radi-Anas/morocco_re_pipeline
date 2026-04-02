@@ -100,7 +100,12 @@ def transform_scraped(df: pd.DataFrame) -> pd.DataFrame:
     # --- Step 7: price range ---
     df["price_range"] = df["price"].apply(_label_price)
 
-    # --- Step 8: final check ---
+    # --- Step 8: price per m2 ---
+    df["price_per_m2"] = pd.Series(dtype=float)
+    mask = df["surface_m2"].notna() & (df["surface_m2"] > 0)
+    df.loc[mask, "price_per_m2"] = (df.loc[mask, "price"] / df.loc[mask, "surface_m2"]).astype(float)
+
+    # --- Step 9: final check ---
     final_count = len(df)
 
     if final_count == 0:

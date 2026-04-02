@@ -34,6 +34,12 @@ def load_data():
         engine = create_engine(DATABASE_URL)
         df = pd.read_sql_query(text("SELECT * FROM listings"), engine)
         engine.dispose()
+        
+        # Force numeric conversion
+        for col in ["price", "surface_m2", "price_per_m2"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
@@ -49,10 +55,10 @@ def load_stats():
             SELECT 
                 city,
                 COUNT(*) as listing_count,
-                ROUND(AVG(price), 0) as avg_price,
-                ROUND(MIN(price), 0) as min_price,
-                ROUND(MAX(price), 0) as max_price,
-                ROUND(AVG(price_per_m2), 0) as avg_price_per_m2
+                ROUND(AVG(price::numeric), 0) as avg_price,
+                ROUND(MIN(price::numeric), 0) as min_price,
+                ROUND(MAX(price::numeric), 0) as max_price,
+                ROUND(AVG(price_per_m2::numeric), 0) as avg_price_per_m2
             FROM listings
             GROUP BY city
             ORDER BY avg_price DESC
@@ -94,21 +100,25 @@ def main():
             st.metric("Cities", cities)
         
         with col4:
-            avg_m2 = df["price_per_m2"].mean()
+            vals = df["price_per_m2"].dropna()
+            avg_m2 = vals.mean() if len(vals) > 0 else 0
             st.metric("Avg Price/m²", f"{avg_m2:,.0f} DH")
         
         st.divider()
         
         st.subheader("Price by City")
-        fig = px.bar(
-            stats,
-            x="city",
-            y="avg_price",
-            color="listing_count",
-            title="Average Price by City",
-            labels={"avg_price": "Average Price (DH)", "city": "City"},
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if not stats.empty:
+            fig = px.bar(
+                stats,
+                x="city",
+                y="avg_price",
+                color="listing_count",
+                title="Average Price by City",
+                labels={"avg_price": "Average Price (DH)", "city": "City"},
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No statistics available yet.")
         
         st.divider()
         
@@ -168,11 +178,10 @@ def main():
         st.subheader("Price vs Surface Area")
         if "surface_m2" in df.columns:
             fig = px.scatter(
-                df,
+                df.dropna(subset=["price", "surface_m2"]),
                 x="surface_m2",
                 y="price",
                 color="city",
-                size="price_per_m2" if "price_per_m2" in df.columns else None,
                 hover_name="title",
                 title="Price vs Surface Area by City",
             )

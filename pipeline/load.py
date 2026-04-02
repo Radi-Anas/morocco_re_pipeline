@@ -43,6 +43,11 @@ def load_to_postgres(df: pd.DataFrame, table_name: str = "listings") -> None:
     engine = get_engine()
 
     try:
+        # Ensure numeric columns are actually numeric before loading
+        for col in ["price", "surface_m2", "price_per_m2"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        
         df.to_sql(
             name=table_name,
             con=engine,

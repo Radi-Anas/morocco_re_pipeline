@@ -20,7 +20,6 @@ def sample_raw_df():
         "price": ["1500000", "2500000", "500000"],
         "currency": ["DH", "DH", "DH"],
         "surface_m2": [85, 200, 35],
-        "rooms": [3, 5, 1],
         "listing_type": ["Vente", "Vente", "Location"],
         "seller_name": ["Particulier", "Agence", "Particulier"],
         "city": ["casablanca", "marrakech", "rabat"],
@@ -41,7 +40,6 @@ def sample_clean_df():
         "price": [1500000.0, 2500000.0],
         "city": ["Casablanca", "Marrakech"],
         "surface_m2": [85, 200],
-        "rooms": [3, 5],
         "url": [
             "https://avito.ma/casablanca/appart1",
             "https://avito.ma/marrakech/villa1",
