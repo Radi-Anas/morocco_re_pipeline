@@ -1,235 +1,209 @@
-# Moroccan Real Estate Data Pipeline
+# Morocco Real Estate Pipeline
 
-An end-to-end ETL pipeline that scrapes live property listings from Avito.ma,
-cleans the data with pandas, and loads it into PostgreSQL for analysis.
+**ETL pipeline for Moroccan real estate listings from Avito.ma**
 
-Built as a portfolio project to demonstrate practical data engineering skills
-on a real-world Moroccan dataset.
+Scrapes property listings, cleans data, loads to PostgreSQL, and provides REST API + Dashboard.
 
----
+## Architecture
 
-## Pipeline Architecture
 ```
-┌─────────────────────────────────────────────────┐
-│                  EXTRACT                        │
-│  Mode A: Selenium scraper → Avito.ma (live)     │
-│  Mode B: CSV file → data/raw/listings.csv       │
-└───────────────────┬─────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────┐
-│                 TRANSFORM                       │
-│  pandas: clean prices, drop invalid rows,       │
-│  standardize cities, add price_per_m2           │
-└───────────────────┬─────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────┐
-│                   LOAD                          │
-│  SQLAlchemy → PostgreSQL (listings table)       │
-└───────────────────┬─────────────────────────────┘
-                    │
-                    ▼
-┌─────────────────────────────────────────────────┐
-│                 ANALYZE                         │
-│  SQL queries: avg price by city, type,          │
-│  affordability ranking, monthly trends          │
-└─────────────────────────────────────────────────┘
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌────────────┐
+│   Avito.ma  │────▶│   Extract    │────▶│  Transform  │────▶│   Load     │
+│   (Scraper) │     │   (Selenium) │     │   (pandas)  │     │ (PostgreSQL)│
+└─────────────┘     └──────────────┘     └─────────────┘     └─────┬──────┘
+                                                                    │
+                        ┌─────────────────┬──────────────────────┘
+                        │                 │
+                        ▼                 ▼
+                  ┌──────────┐     ┌──────────┐
+                  │   API    │     │ Dashboard │
+                  │ (FastAPI)│     │(Streamlit)│
+                  └──────────┘     └──────────┘
 ```
 
----
+## Features
 
-## Tech Stack
+- **Web Scraper**: Selenium-based two-pass scraping from Avito.ma
+- **Data Cleaning**: Price normalization, city standardization, deduplication
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **Orchestration**: Prefect for scheduled, production-grade pipelines
+- **REST API**: FastAPI with filtering, pagination, and statistics
+- **Dashboard**: Streamlit with Plotly visualizations
+- **Testing**: 30+ pytest unit tests
+- **CI/CD**: GitHub Actions for automated testing and deployment
 
-| Tool | Purpose |
-|------|---------|
-| Python 3 | Core language |
-| Selenium | Browser automation for live scraping |
-| BeautifulSoup4 | HTML parsing |
-| pandas | Data cleaning and transformation |
-| SQLAlchemy | Database connection layer |
-| psycopg2 | PostgreSQL driver |
-| PostgreSQL | Data warehouse |
-| python-dotenv | Secure credential management |
+## Quick Start
 
----
+### 1. Install Dependencies
 
-## Project Structure
-```
-morocco_re_pipeline/
-│   main.py                 # Pipeline entry point
-│   .env                    # DB credentials (not committed)
-│   requirements.txt        # Python dependencies
-│
-├───pipeline/
-│       extract.py          # Scraper (Selenium) + CSV fallback
-│       transform.py        # Data cleaning and standardization
-│       load.py             # PostgreSQL loader
-│
-├───data/
-│   ├───raw/
-│   │       listings.csv    # Sample dataset (10 listings)
-│   └───clean/              # Output of transform step
-│
-├───config/
-│       settings.py         # Centralized DB configuration
-│
-└───sql/
-        analysis.sql        # Business analysis queries
-```
-
----
-
-## Two Ways to Run
-
-### Mode A — Live scraper (recommended)
-
-Scrapes real listings directly from Avito.ma using Selenium.
-Requires Google Chrome to be installed.
-
-In `main.py`, set:
-```python
-USE_SCRAPER = True
-```
-
-Then run:
-```bash
-python main.py
-```
-
-Each run collects ~30 listings per page. Adjust the number of pages:
-```python
-raw_df = scrape_avito(max_pages=5)  # ~150 listings
-```
-
----
-
-### Mode B — CSV mode (no browser needed)
-
-Uses the included sample dataset. Useful for testing the
-transform and load steps without hitting the website.
-
-In `main.py`, set:
-```python
-USE_SCRAPER = False
-```
-
-Then run:
-```bash
-python main.py
-```
-
----
-
-## Setup Instructions
-
-**1. Clone the repo**
-```bash
-git clone https://github.com/Radi-Anas/morocco_re_pipeline.git
-cd morocco_re_pipeline
-```
-
-**2. Create and activate a virtual environment**
-```bash
-python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Mac/Linux
-```
-
-**3. Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Configure environment variables**
+### 2. Configure Environment
 
-Create a `.env` file in the project root:
-```
+Create `.env` file:
+
+```env
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=morocco_re
 DB_USER=postgres
-DB_PASSWORD=yourpassword
+DB_PASSWORD=postgres
 ```
 
-**5. Create the PostgreSQL database**
-```sql
-CREATE DATABASE morocco_re;
-```
+### 3. Run Pipeline
 
-**6. Run the pipeline**
 ```bash
+# Full pipeline (scraping + load)
+python main.py
+
+# Or use Prefect flow
+python prefect_flow.py
+```
+
+### 4. View Dashboard
+
+```bash
+streamlit run dashboard.py
+```
+
+Dashboard: http://localhost:8501
+
+### 5. Use API
+
+```bash
+uvicorn api:app --reload
+```
+
+API Docs: http://localhost:8000/docs
+
+## Project Structure
+
+```
+morocco_re_pipeline/
+├── config/              # Configuration settings
+│   └── settings.py
+├── pipeline/            # ETL pipeline modules
+│   ├── extract.py       # Web scraping
+│   ├── transform.py     # Data cleaning
+│   ├── validate.py      # Data quality checks
+│   └── load.py         # Database loading
+├── sql/                 # SQL analysis queries
+│   └── analysis.sql
+├── tests/               # Unit tests
+│   ├── conftest.py
+│   ├── test_extract.py
+│   ├── test_transform.py
+│   └── test_validate.py
+├── api.py               # FastAPI REST API
+├── dashboard.py         # Streamlit dashboard
+├── main.py              # Pipeline entry point
+├── prefect_flow.py      # Prefect orchestration
+├── deployment.py        # Prefect deployment config
+├── docker-compose.yml   # Full stack deployment
+├── Dockerfile           # Container image
+├── requirements.txt     # Python dependencies
+└── README.md
+```
+
+## Usage Modes
+
+### CSV Mode (Development)
+
+Uses existing data from `data/raw/listings.csv`:
+
+```python
+USE_SCRAPER = False  # In main.py
 python main.py
 ```
 
----
+### Scraper Mode (Production)
 
-## Data Cleaning Rules
+Live scrape from Avito.ma:
 
-| Rule | Detail |
-|------|--------|
-| Invalid prices dropped | Non-numeric and missing prices removed |
-| Zero surface area dropped | Listings with 0 m² removed |
-| Text fields standardized | City, neighborhood, type → title case |
-| Duplicates removed | Deduplicated by URL (scraper mode) |
-| Price per m² derived | `price_per_m2 = price / surface_m2` |
-
----
-
-## Sample SQL Analysis
-```sql
--- Average price and price per m² by city
-SELECT
-    city,
-    COUNT(*)                    AS listings,
-    ROUND(AVG(price), 0)        AS avg_price,
-    ROUND(AVG(price_per_m2), 0) AS avg_price_per_m2
-FROM listings
-WHERE price > 0
-GROUP BY city
-ORDER BY avg_price DESC;
-
--- Most affordable listings by price per m²
-SELECT title, city, price, surface_m2, price_per_m2
-FROM listings
-WHERE price > 0
-ORDER BY price_per_m2 ASC
-LIMIT 10;
+```python
+USE_SCRAPER = True  # In main.py
+python main.py
 ```
 
----
+## Data Schema
 
-## Sample Output
+| Column | Type | Description |
+|--------|------|-------------|
+| id | SERIAL | Primary key |
+| title | VARCHAR | Listing title |
+| price | NUMERIC | Price in MAD |
+| surface_m2 | NUMERIC | Surface area in m² |
+| price_per_m2 | NUMERIC | Calculated price per m² |
+| price_range | VARCHAR | Budget/Mid-range/Premium/Luxury |
+| city | VARCHAR | City name |
+| category | VARCHAR | Property category |
+| listing_type | VARCHAR | Vente (sale) or Location (rental) |
+| seller_name | VARCHAR | Seller name |
+| seller_type | VARCHAR | Agence or Particulier |
+| url | VARCHAR | Original Avito URL |
+| description | TEXT | Listing description |
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | API info |
+| `/listings` | GET | List listings (filters: city, min_price, max_price) |
+| `/listings/{id}` | GET | Get single listing |
+| `/stats` | GET | Price statistics by city |
+| `/cities` | GET | List available cities |
+| `/health` | GET | Health check |
+
+## Prefect Deployment
+
+```bash
+# Create deployment
+python deployment.py create dev
+
+# Start worker
+prefect agent start --work-queue dev-etl
+
+# Run deployment
+prefect deployment run 'morocco-re-pipeline/morocco-re-dev'
 ```
-2026-03-31 11:51:52 [INFO] === Pipeline started ===
-2026-03-31 11:51:54 [INFO] Scraping page 1: https://www.avito.ma/fr/maroc/immobilier?o=1
-2026-03-31 11:52:01 [INFO] Page 1 done. Total collected so far: 38
-2026-03-31 11:52:09 [INFO] Page 2 done. Total collected so far: 76
-2026-03-31 11:52:17 [INFO] Page 3 done. Total collected so far: 114
-2026-03-31 11:52:22 [INFO] Scraping complete. Total raw listings: 113
-2026-03-31 11:52:22 [INFO] Transformation complete. 113 clean rows.
-2026-03-31 11:52:22 [INFO] Loaded 113 rows into table 'listings'.
-2026-03-31 11:52:22 [INFO] === Pipeline finished successfully ===
+
+## Docker Deployment
+
+```bash
+# Start full stack
+docker-compose up
+
+# Or build and run pipeline only
+docker build -t morocco-re-pipeline .
+docker run morocco-re-pipeline
 ```
 
----
+## Testing
 
-## Roadmap
+```bash
+# Run all tests
+pytest tests/ -v
 
-- [x] CSV extraction mode
-- [x] Data cleaning with pandas
-- [x] PostgreSQL loading with SQLAlchemy
-- [x] SQL analysis queries
-- [x] Live web scraping with Selenium (Avito.ma)
-- [ ] Scheduled daily runs (Task Scheduler / cron)
-- [ ] Data quality validation layer
-- [ ] Dashboard visualization (Metabase / Grafana)
-- [ ] Airflow orchestration
-- [ ] dbt transformations
+# Run with coverage
+pytest tests/ --cov=pipeline --cov-report=html
+```
 
----
+## Technologies
 
-## Author
+- **Python 3.10+**
+- **Selenium** - Web scraping
+- **pandas** - Data manipulation
+- **SQLAlchemy** - Database ORM
+- **PostgreSQL** - Database
+- **Prefect** - Workflow orchestration
+- **FastAPI** - REST API
+- **Streamlit** - Dashboard
+- **Plotly** - Visualizations
+- **Docker** - Containerization
+- **GitHub Actions** - CI/CD
 
-**Radi Anas**
-[LinkedIn](https://www.linkedin.com/in/radi-anas/) • [GitHub](https://github.com/Radi-Anas) • [Mail](Anasradi556@gmail.com) 
+## License
+
+MIT
