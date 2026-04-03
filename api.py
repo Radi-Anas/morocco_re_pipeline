@@ -43,7 +43,10 @@ app.add_middleware(
 def get_db_connection():
     """Create database connection."""
     try:
-        engine = create_engine(DATABASE_URL)
+        import os
+        db_url = os.environ.get("DATABASE_URL", DATABASE_URL)
+        logger.info(f"DB URL starts with: {db_url[:50] if db_url else 'NONE'}")
+        engine = create_engine(db_url)
         return engine
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
