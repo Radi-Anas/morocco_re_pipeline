@@ -1,8 +1,0 @@
-﻿id,title,city,neighborhood,price,surface_m2,rooms,type,listing_date,price_per_m2,price_range
-1,Appartement moderne Casablanca,Casablanca,Maarif,1200000.0,85,3,Appartement,2024-01-15,14117.64705882353,Premium
-2,Villa avec piscine Marrakech,Marrakech,Palmeraie,4500000.0,320,6,Villa,2024-01-20,14062.5,Premium
-3,Studio Rabat centre,Rabat,Agdal,450000.0,35,1,Studio,2024-02-01,12857.142857142857,Mid-range
-5,Riad traditionnel Fes,Fes,Medina,2200000.0,200,5,Riad,2024-02-14,11000.0,Premium
-7,Appartement Casablanca,Casablanca,Bourgogne,950000.0,75,3,Appartement,2024-03-05,12666.666666666666,Mid-range
-8,Studio Marrakech,Marrakech,Gueliz,380000.0,32,1,Studio,2024-03-10,11875.0,Mid-range
-9,Appartement Rabat,Rabat,Hay Riad,780000.0,90,3,Appartement,2024-03-12,8666.666666666666,Mid-range

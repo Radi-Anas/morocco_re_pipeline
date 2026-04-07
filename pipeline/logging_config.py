@@ -1,48 +1,26 @@
 """
-Logging configuration for production-grade observability.
+pipeline/logging_config.py
+Logging configuration for the pipeline.
 """
 
 import logging
-import sys
-from pathlib import Path
-
-# Create logs directory
-Path("logs").mkdir(exist_ok=True)
+import os
+from datetime import datetime
 
 
-def setup_logging(
-    level: str = "INFO",
-    log_to_file: bool = True,
-    log_file: str = "logs/pipeline.log",
-):
-    """Configure logging for the pipeline."""
+def setup_logging(log_file: str = None):
+    """Setup logging configuration."""
+    if log_file is None:
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "pipeline.log")
     
-    # Create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
     )
-    
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, level.upper()))
-    
-    # Remove existing handlers
-    root_logger.handlers.clear()
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-    
-    # File handler (optional)
-    if log_to_file:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
-    
-    return root_logger
-
-
-# Default setup
-setup_logging()
+    return logging.getLogger(__name__)
