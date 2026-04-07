@@ -9,15 +9,19 @@ Endpoints:
     GET  /                    - API info
     GET  /health              - Health check
     POST /predict             - Predict fraud for a claim
-    GET  /stats                - Fraud statistics
-    GET  /claims               - List claims
+    POST /predict/batch       - Batch predict for multiple claims
+    GET  /model/metrics       - Model performance metrics
+    GET  /predictions         - Prediction history
+    GET  /stats               - Fraud statistics
+    GET  /claims              - List claims
 """
 
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from sqlalchemy import create_engine, text
+from datetime import datetime
 import logging
 
 from config.settings import DATABASE_URL
@@ -38,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# In-memory prediction history (for demo - use database in production)
+prediction_history = []
 
 
 def get_db_connection():
@@ -70,6 +77,9 @@ def root():
         "endpoints": [
             "GET /health",
             "POST /predict",
+            "POST /predict/batch",
+            "GET /model/metrics",
+            "GET /predictions",
             "GET /stats",
             "GET /claims",
         ],
@@ -126,18 +136,124 @@ def predict_fraud(claim_data: dict) -> dict:
         from fraud_model import predict_fraud
         result = predict_fraud(claim_data, model_data)
         
-        return {
+        prediction_result = {
             "prediction": result["is_fraud"],
             "fraud_probability": result["fraud_probability"],
             "confidence": result["confidence"],
             "risk_level": "HIGH" if result["fraud_probability"] > 0.7 else "MEDIUM" if result["fraud_probability"] > 0.3 else "LOW"
         }
+        
+        # Store in history
+        prediction_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "claim_data": claim_data,
+            **prediction_result
+        })
+        
+        return prediction_result
     
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Prediction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/predict/batch")
+def predict_batch(claims: List[dict]) -> dict:
+    """
+    Predict fraud for multiple claims at once.
+    
+    Example payload:
+    [
+        {"months_as_customer": 12, "age": 35, ...},
+        {"months_as_customer": 24, "age": 45, ...}
+    ]
+    """
+    try:
+        model_data = get_model()
+        if model_data is None:
+            raise HTTPException(status_code=503, detail="Model not available")
+        
+        from fraud_model import predict_fraud
+        
+        results = []
+        for claim_data in claims:
+            result = predict_fraud(claim_data, model_data)
+            results.append({
+                "prediction": result["is_fraud"],
+                "fraud_probability": result["fraud_probability"],
+                "confidence": result["confidence"],
+                "risk_level": "HIGH" if result["fraud_probability"] > 0.7 else "MEDIUM" if result["fraud_probability"] > 0.3 else "LOW"
+            })
+        
+        # Summary
+        fraud_count = sum(1 for r in results if r["prediction"] == 1)
+        
+        return {
+            "total_predictions": len(results),
+            "fraud_count": fraud_count,
+            "legitimate_count": len(results) - fraud_count,
+            "fraud_rate": round(fraud_count / len(results) * 100, 1),
+            "results": results
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Batch prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/model/metrics")
+def get_model_metrics() -> dict:
+    """Get model performance metrics."""
+    try:
+        model_data = get_model()
+        if model_data is None:
+            raise HTTPException(status_code=503, detail="Model not available")
+        
+        # Load data and retrain to get fresh metrics
+        from fraud_model import load_data, prepare_features, train_model
+        
+        df = load_data()
+        X, y, encoders, feature_names = prepare_features(df)
+        results = train_model(X, y)
+        
+        return {
+            "accuracy": round(results["accuracy"], 3),
+            "auc_score": round(results["auc_score"], 3),
+            "model_type": "RandomForest",
+            "features_count": len(feature_names),
+            "total_samples": len(y),
+            "fraud_samples": int(sum(y)),
+            "legitimate_samples": int(len(y) - sum(y)),
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/predictions")
+def get_predictions(
+    limit: int = Query(50, ge=1, le=100),
+    fraud_only: bool = Query(False, description="Filter to fraud predictions only"),
+) -> dict:
+    """Get prediction history."""
+    global prediction_history
+    
+    filtered = prediction_history
+    if fraud_only:
+        filtered = [p for p in prediction_history if p["prediction"] == 1]
+    
+    return {
+        "count": len(filtered),
+        "limit": limit,
+        "predictions": filtered[:limit]
+    }
 
 
 @app.get("/stats")
