@@ -1,19 +1,19 @@
 """
 api.py
-FastAPI endpoint for serving Moroccan real estate listings.
+FastAPI endpoint for Insurance Claims Fraud Detection.
 
 Run:
     uvicorn api:app --reload
 
 Endpoints:
-    GET /                    - API info
-    GET /listings            - List all listings
-    GET /listings/{id}       - Get single listing
-    GET /stats               - Price statistics by city
-    GET /health              - Health check
+    GET  /                    - API info
+    GET  /health              - Health check
+    POST /predict             - Predict fraud for a claim
+    GET  /stats                - Fraud statistics
+    GET  /claims               - List claims
 """
 
-from typing import Optional, List
+from typing import Optional
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Morocco RE API",
-    description="API for Moroccan Real Estate listings from Avito.ma",
+    title="Insurance Claims Fraud API",
+    description="ML-powered fraud detection for insurance claims",
     version="1.0.0",
 )
 
@@ -50,18 +50,28 @@ def get_db_connection():
         raise HTTPException(status_code=500, detail="Database unavailable")
 
 
+def get_model():
+    """Load fraud detection model."""
+    try:
+        from fraud_model import load_model
+        return load_model()
+    except Exception as e:
+        logger.error(f"Model load failed: {e}")
+        return None
+
+
 @app.get("/")
 def root():
     """API root endpoint."""
     return {
-        "name": "Morocco Real Estate API",
+        "name": "Insurance Claims Fraud API",
         "version": "1.0.0",
         "docs": "/docs",
         "endpoints": [
-            "GET /listings",
-            "GET /listings/{id}",
-            "GET /stats",
             "GET /health",
+            "POST /predict",
+            "GET /stats",
+            "GET /claims",
         ],
     }
 
@@ -73,46 +83,111 @@ def health_check():
         engine = get_db_connection()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return {"status": "healthy", "database": "connected"}
+        
+        # Check model
+        model = get_model()
+        model_status = "loaded" if model else "not loaded"
+        
+        return {"status": "healthy", "database": "connected", "model": model_status}
     except Exception as e:
-        return {"status": "unhealthy", "database": "disconnected", "error": str(e)}
+        return {"status": "unhealthy", "error": str(e)}
 
 
-@app.get("/listings")
-def get_listings(
-    city: Optional[str] = Query(None, description="Filter by city"),
-    min_price: Optional[float] = Query(None, description="Minimum price"),
-    max_price: Optional[float] = Query(None, description="Maximum price"),
-    limit: int = Query(100, ge=1, le=1000, description="Max results"),
-    offset: int = Query(0, ge=0, description="Skip results"),
-) -> dict:
+@app.post("/predict")
+def predict_fraud(claim_data: dict) -> dict:
     """
-    Get listings with optional filters.
+    Predict fraud for an insurance claim.
     
-    Example:
-        GET /listings?city=Casablanca&min_price=500000&max_price=2000000
+    Example payload:
+    {
+        "months_as_customer": 12,
+        "age": 35,
+        "policy_state": "OH",
+        "policy_csl": "250/500",
+        "policy_deductable": 500,
+        "policy_annual_premium": 1200,
+        "insured_sex": "M",
+        "insured_education_level": "BS",
+        "insured_occupation": "Tech",
+        "incident_type": "Single Vehicle Collision",
+        "incident_severity": "Major Damage",
+        "total_claim_amount": 5000,
+        "vehicle_claim": 3000,
+        "property_claim": 1500,
+        "injury_claim": 500,
+        "auto_make": "Toyota"
+    }
     """
     try:
+        model_data = get_model()
+        if model_data is None:
+            raise HTTPException(status_code=503, detail="Model not available")
+        
+        from fraud_model import predict_fraud
+        result = predict_fraud(claim_data, model_data)
+        
+        return {
+            "prediction": result["is_fraud"],
+            "fraud_probability": result["fraud_probability"],
+            "confidence": result["confidence"],
+            "risk_level": "HIGH" if result["fraud_probability"] > 0.7 else "MEDIUM" if result["fraud_probability"] > 0.3 else "LOW"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stats")
+def get_stats() -> dict:
+    """Get fraud statistics."""
+    try:
         engine = get_db_connection()
-        query = "SELECT * FROM listings WHERE 1=1"
-        params = {}
         
-        if city:
-            query += " AND city = :city"
-            params["city"] = city.title()
+        df = pd.read_sql_query(text("""
+            SELECT 
+                COUNT(*) as total_claims,
+                SUM(CASE WHEN is_fraud = 1 THEN 1 ELSE 0 END) as fraud_count,
+                ROUND(SUM(CASE WHEN is_fraud = 1 THEN 1 ELSE 0 END)::numeric / COUNT(*) * 100, 1) as fraud_rate,
+                ROUND(AVG(total_claim_amount::numeric), 2) as avg_claim_amount,
+                ROUND(AVG(policy_annual_premium::numeric), 2) as avg_premium
+            FROM claims
+        """), engine)
         
-        if min_price is not None:
-            query += " AND price >= :min_price"
-            params["min_price"] = min_price
+        engine.dispose()
         
-        if max_price is not None:
-            query += " AND price <= :max_price"
-            params["max_price"] = max_price
+        return {
+            "total_claims": int(df.iloc[0]["total_claims"]),
+            "fraud_count": int(df.iloc[0]["fraud_count"]),
+            "fraud_rate_percent": float(df.iloc[0]["fraud_rate"]),
+            "avg_claim_amount": float(df.iloc[0]["avg_claim_amount"]),
+            "avg_premium": float(df.iloc[0]["avg_premium"]),
+        }
+    
+    except Exception as e:
+        logger.error(f"Error fetching stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/claims")
+def get_claims(
+    fraud_only: bool = Query(False, description="Filter to fraud claims only"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    """Get claims with optional filters."""
+    try:
+        engine = get_db_connection()
+        query = "SELECT * FROM claims"
         
-        query += " ORDER BY price DESC"
+        if fraud_only:
+            query += " WHERE is_fraud = 1"
+        
         query += f" LIMIT {limit} OFFSET {offset}"
         
-        df = pd.read_sql_query(text(query), engine, params=params)
+        df = pd.read_sql_query(text(query), engine)
         engine.dispose()
         
         return {
@@ -123,94 +198,7 @@ def get_listings(
         }
     
     except Exception as e:
-        logger.error(f"Error fetching listings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/listings/{listing_id}")
-def get_listing(listing_id: int) -> dict:
-    """Get a single listing by ID."""
-    try:
-        engine = get_db_connection()
-        df = pd.read_sql_query(
-            text("SELECT * FROM listings WHERE id = :id"),
-            engine,
-            params={"id": listing_id},
-        )
-        engine.dispose()
-        
-        if df.empty:
-            raise HTTPException(status_code=404, detail="Listing not found")
-        
-        return df.to_dict(orient="records")[0]
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching listing {listing_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/stats")
-def get_stats(city: Optional[str] = Query(None, description="Filter by city")) -> dict:
-    """
-    Get price statistics.
-    
-    Example:
-        GET /stats?city=Casablanca
-    """
-    try:
-        engine = get_db_connection()
-        
-        base_query = """
-            SELECT 
-                city,
-                COUNT(*) as listing_count,
-                ROUND(AVG(price), 0) as avg_price,
-                ROUND(MIN(price), 0) as min_price,
-                ROUND(MAX(price), 0) as max_price,
-                ROUND(AVG(price_per_m2), 0) as avg_price_per_m2
-            FROM listings
-        """
-        
-        if city:
-            query = base_query + " WHERE city = :city GROUP BY city"
-            params = {"city": city.title()}
-        else:
-            query = base_query + " GROUP BY city ORDER BY avg_price DESC"
-            params = {}
-        
-        df = pd.read_sql_query(text(query), engine, params=params)
-        engine.dispose()
-        
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
-    
-    except Exception as e:
-        logger.error(f"Error fetching stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/cities")
-def get_cities() -> dict:
-    """Get list of all available cities."""
-    try:
-        engine = get_db_connection()
-        df = pd.read_sql_query(
-            text("SELECT DISTINCT city FROM listings ORDER BY city"),
-            engine,
-        )
-        engine.dispose()
-        
-        return {
-            "count": len(df),
-            "cities": df["city"].tolist(),
-        }
-    
-    except Exception as e:
-        logger.error(f"Error fetching cities: {e}")
+        logger.error(f"Error fetching claims: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
