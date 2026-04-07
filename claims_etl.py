@@ -52,9 +52,17 @@ def extract_from_csv(file_path: str) -> pd.DataFrame:
 
 
 def get_engine():
-    """Create and return a SQLAlchemy engine."""
+    """Create and return a SQLAlchemy engine with connection pooling."""
+    from config.settings import POOL_CONFIG
     try:
-        engine = create_engine(DATABASE_URL)
+        engine = create_engine(
+            DATABASE_URL,
+            pool_size=POOL_CONFIG["pool_size"],
+            max_overflow=POOL_CONFIG["max_overflow"],
+            pool_pre_ping=POOL_CONFIG["pool_pre_ping"],
+            pool_recycle=POOL_CONFIG["pool_recycle"],
+            pool_timeout=POOL_CONFIG["pool_timeout"],
+        )
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         logger.info("Database connection successful.")

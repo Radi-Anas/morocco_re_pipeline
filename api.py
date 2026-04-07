@@ -34,6 +34,27 @@ import hashlib
 
 from config.settings import DATABASE_URL, APP_CONFIG
 
+# Rate limiting
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
+
+limiter = Limiter(key_func=get_remote_address)
+
+# Add rate limiter to app
+app = FastAPI()
+app.state.limiter = limiter
+
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Handle rate limit exceeded."""
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"}
+    )
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # Structured logging
 logging.basicConfig(
     level=logging.INFO,
@@ -175,7 +196,8 @@ def health_check():
 
 
 @app.post("/predict")
-def predict_fraud(claim_data: dict) -> dict:
+@limiter.limit("10/minute")
+def predict_fraud(claim_data: dict, request: Request) -> dict:
     """
     Predict fraud for an insurance claim.
     
@@ -231,7 +253,8 @@ def predict_fraud(claim_data: dict) -> dict:
 
 
 @app.post("/predict/batch")
-def predict_batch(claims: List[dict]) -> dict:
+@limiter.limit("5/minute")
+def predict_batch(claims: List[dict], request: Request) -> dict:
     """
     Predict fraud for multiple claims at once.
     

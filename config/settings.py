@@ -52,11 +52,20 @@ DB_CONFIG = {
     "max_overflow": db_config["max_overflow"],
 }
 
-# SQLAlchemy connection string
+# SQLAlchemy connection string with pooling
 DATABASE_URL = (
     f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
     f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
 )
+
+# SQLAlchemy pool settings
+POOL_CONFIG = {
+    "pool_size": DB_CONFIG["pool_size"],
+    "max_overflow": DB_CONFIG["max_overflow"],
+    "pool_pre_ping": True,  # Verify connections before use
+    "pool_recycle": 300,   # Recycle connections after 5 minutes
+    "pool_timeout": 30,    # Wait for connection timeout
+}
 
 # Logging configuration per environment
 LOG_CONFIG = {
