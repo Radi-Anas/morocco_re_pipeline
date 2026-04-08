@@ -80,20 +80,36 @@ def train_model(X: pd.DataFrame, y: np.ndarray) -> dict:
     # Try XGBoost, fall back to sklearn if not available
     try:
         from xgboost import XGBClassifier
+        
+        # Calculate scale_pos_weight for imbalanced data
+        # ratio of negative to positive samples
+        scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
+        
         model = XGBClassifier(
-            n_estimators=100,
+            n_estimators=150,
             max_depth=6,
-            learning_rate=0.1,
+            learning_rate=0.05,
+            scale_pos_weight=scale_pos_weight,  # Handle imbalanced data
+            min_child_weight=3,
+            subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42,
-            eval_metric='logloss',
+            eval_metric='auc',
             use_label_encoder=False
         )
     except ImportError:
         from sklearn.ensemble import RandomForestClassifier
-        logger.warning("XGBoost not available, using RandomForest")
+        logger.warning("XGBoost not available, using RandomForest with class_weight")
+        
+        # Calculate class weight for imbalanced data
+        class_weight = {0: 1, 1: (y_train == 0).sum() / (y_train == 1).sum()}
+        
         model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
+            n_estimators=150,
+            max_depth=12,
+            min_samples_split=5,
+            min_samples_leaf=2,
+            class_weight=class_weight,  # Handle imbalanced data
             random_state=42,
             n_jobs=-1
         )

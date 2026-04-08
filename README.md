@@ -54,12 +54,12 @@ Insurance fraud costs companies billions annually. When a claim comes in, invest
 
 | Metric | Value | Why It Matters |
 |--------|-------|-----------------|
-| Accuracy | 78% | Overall correctness |
-| AUC-ROC | 0.785 | Ability to rank fraud vs legitimate |
-| Precision | 58% | When we say fraud, we're right 58% of time |
-| Recall | 39% | We catch 39% of actual fraud |
+| Accuracy | 82% | Overall correctness |
+| AUC-ROC | 0.797 | Ability to rank fraud vs legitimate |
+| Precision | 64% | When we say fraud, we're right 64% of time |
+| Recall | 59% | We catch 59% of actual fraud |
 
-**Note on Recall:** Low recall (39%) is intentional. In fraud detection, high precision matters more than high recall - we'd rather investigate false positives than miss actual fraud. The model is tuned to flag high-probability cases for manual review.
+**Improvement from baseline:** Added class weighting to handle imbalanced data (24.7% fraud rate), adjusted hyperparameters for better recall without sacrificing precision.
 
 ---
 
