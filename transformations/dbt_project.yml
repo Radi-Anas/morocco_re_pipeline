@@ -1,0 +1,22 @@
+name: insurance_fraud_etl
+version: '1.0.0'
+
+config-version: 2
+
+vars:
+  database: insurance_db
+  schema: public
+
+target: dev
+
+profiles:
+  dev:
+    outputs:
+      dev:
+        type: postgres
+        host: localhost
+        port: 5432
+        user: postgres
+        password: "{{ env_var('DB_PASSWORD') }}"
+        dbname: insurance_db
+        schema: public

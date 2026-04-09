@@ -1,0 +1,12 @@
+# Params for fraud model
+model:
+  threshold: 0.35
+  random_state: 42
+
+validation:
+  test_size: 0.2
+  cv_folds: 5
+
+transform:
+  fillna_numeric: median
+  fillna_categorical: Unknown

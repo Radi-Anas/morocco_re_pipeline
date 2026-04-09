@@ -36,6 +36,13 @@ alembic==1.13.1
 # Monitoring
 prometheus-client==0.20.0
 
+# Data Engineering
+great-expectations==0.18.21
+dvc==3.51.0
+
+# Schema Registry
+avro==1.11.3
+
 # Utilities
 python-dateutil==2.8.2
 typing_extensions==4.10.0

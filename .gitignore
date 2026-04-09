@@ -7,3 +7,6 @@ debug_*.py
 *_debug.html
 data/clean/
 logs/
+dvc_storage/
+.dvc/
+data_quality/validation_results.json
