@@ -1,6 +1,6 @@
 # Insurance Claims Fraud Detection System
 
-A data engineering pipeline that detects fraudulent insurance claims. Built to solve a real business problem and demonstrate core data engineering skills.
+A production-grade data pipeline that detects fraudulent insurance claims using machine learning. Built with modern data engineering practices and deployed as a complete ML platform.
 
 ---
 
@@ -15,35 +15,35 @@ Insurance fraud costs companies billions annually. When a claim comes in, invest
 
 ---
 
-## Data Flow
+## Architecture Overview
 
 ```
 1. RAW DATA (CSV)
    └── Insurance claims with customer, policy, incident details
 
-2. ETL PIPELINE (claims_etl.py)
+2. ETL PIPELINE (src/data/ingestion/)
    ├── Extract: Load from CSV
    ├── Transform: Clean data, handle missing values, create features
-   ├── Validate: Check data quality, enforce schema
-   └── Load: Insert into PostgreSQL
+   ├── Validate: Great Expectations, schema registry
+   └── Load: Insert into PostgreSQL with connection pooling
 
 3. DATABASE (PostgreSQL)
    └── 1000 claims, indexed on fraud flag, severity, vehicle make
    └── Connection pooling (5 connections, 10 overflow)
 
-4. ML MODEL (fraud_model.py)
-   ├── Features: 29 columns (customer info, policy, incident, amounts)
-   ├── Target: fraud_reported (Y/N)
-   └── Training: RandomForest with balanced class weights
+4. ML MODEL (src/models/)
+   ├── Features: 29 columns + 14 engineered features
+   ├── Target: is_fraud (binary)
+   └── Training: XGBoost + RandomForest ensemble
 
-5. API (api.py)
+5. API (src/api/)
    ├── /predict: Single claim prediction
    ├── /stats: Aggregated fraud statistics
    ├── /health: System health check
-   └── Caching: 5-minute TTL on /stats
+   └── Rate limiting: 5-10 requests/minute
 
-6. DASHBOARD (dashboard.py)
-   ├── Overview: Fraud rate by vehicle, severity charts
+6. DASHBOARD (src/services/)
+   ├── Overview: Fraud rate, severity charts
    ├── Claims browser with filters
    └── Model performance metrics
 ```
@@ -53,15 +53,15 @@ Insurance fraud costs companies billions annually. When a claim comes in, invest
 ## Model Performance
 
 | Metric | Value | Why It Matters |
-|--------|-------|-----------------|
+|--------|-------|----------------|
 | Accuracy | 81.5% | Overall correctness |
 | AUC-ROC | 0.805 | Strong ranking ability |
 | Precision | 60% | When we say fraud, 60% actually are fraud |
-| Recall | 71% | We catch 71% of actual fraud |
+| Recall | 72% | We catch 72% of actual fraud |
 
 ### Feature Engineering
 
-I created 8 domain-specific features based on fraud detection logic:
+Created 14 domain-specific features based on fraud detection logic:
 
 | Feature | Formula | Why It Predicts Fraud |
 |---------|---------|----------------------|
@@ -81,32 +81,67 @@ I created 8 domain-specific features based on fraud detection logic:
 - Fraudsters prefer scenarios where no one can contradict their story
 - Injuries without witnesses are 3x more likely to be fraudulent
 
-**How We Found It:**
-- Analyzed fraud patterns in training data
-- Cross-referenced bodily_injuries > 0 with witnesses = 0
-- Found strong correlation with is_fraud = 1
-- Model confirmed via feature importance (top feature)
-
 **Business Insight:**
 This feature directly answers: "Is anyone to corroborate this claim?"
-If answer is NO + injuries exist → flag for review
+If answer is NO + injuries exist -> flag for review
 
 ---
 
-### Model Improvements
-
 ## Tech Stack
 
-| Component | Technology | Version |
-|-----------|------------|----------|
-| Language | Python | 3.10 |
-| Database | PostgreSQL | 15 |
-| ML | scikit-learn | 1.5 |
-| API | FastAPI | 0.115 |
-| Dashboard | Streamlit | 1.40 |
-| Scheduling | Prefect | 3.0 |
-| Testing | pytest | 8.3 |
-| Docker | docker-compose | 3.8 |
+| Component | Technology |
+|-----------|-------------|
+| Language | Python 3.10 |
+| Database | PostgreSQL |
+| ML | scikit-learn, XGBoost |
+| API | FastAPI |
+| Dashboard | Streamlit |
+| Scheduling | Prefect |
+| Data Quality | Great Expectations |
+| Transformations | dbt |
+| Versioning | DVC |
+| Testing | pytest |
+| Containerization | Docker |
+| CI/CD | GitHub Actions |
+
+---
+
+## Project Structure
+
+```
+.
+├── src/
+│   ├── api/                    # FastAPI application
+│   │   └── app.py              # 8 endpoints, auth, rate limiting
+│   ├── data/
+│   │   ├── ingestion/          # ETL pipeline
+│   │   │   └── claims_etl.py
+│   │   ├── processing/        # dbt transformations
+│   │   │   └── transformations/
+│   │   └── validation/        # Great Expectations
+│   │       └── data_quality/
+│   ├── models/                 # ML models
+│   │   ├── fraud_model.py
+│   │   ├── fraud_model.pkl
+│   │   └── label_encoders.pkl
+│   ├── pipelines/             # Orchestration
+│   │   ├── scheduler.py       # Prefect flows
+│   │   ├── incremental_etl.py # Watermark-based processing
+│   │   ├── schema_registry.py # Avro schemas
+│   │   └── lineage.py        # Data lineage tracking
+│   └── services/              # Dashboard
+│       └── dashboard.py
+├── configs/                   # Configuration
+│   ├── settings.py
+│   └── params.yaml
+├── tests/                     # 56 unit tests
+├── migrations/               # Alembic database migrations
+├── sql/                      # SQL analysis
+├── scripts/                  # Backup/restore utilities
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
+```
 
 ---
 
@@ -121,14 +156,14 @@ If answer is NO + injuries exist → flag for review
 ```bash
 # Clone and install
 git clone https://github.com/Radi-Anas/Insurance_Data_Piepline-ML.git
-cd Insurance_Data_Piepline-ML
+cd morocco_re_pipeline
 pip install -r requirements.txt
 
 # Configure database
 cp .env.development .env
 # Edit .env with your DB credentials
 
-# Run everything
+# Run ETL and start services
 python main.py
 ```
 
@@ -149,6 +184,7 @@ python main.py
 | `/stats` | GET | Fraud statistics (cached) |
 | `/claims` | GET | List claims with filters |
 | `/model/metrics` | GET | Model performance (API key required) |
+| `/model/train` | POST | Retrain model (API key required) |
 
 ### Example Usage
 
@@ -172,6 +208,60 @@ print(response.json())
 
 ---
 
+## Data Engineering Features
+
+### ETL Pipeline
+- Incremental processing with watermark-based approach
+- Connection pooling (5 connections, 10 overflow)
+- Database indexes for performance
+
+### Data Quality
+- Great Expectations for validation
+- Schema registry with Avro
+- Data lineage tracking
+- Automated backup/restore
+
+### Transformations
+- dbt for SQL-based transformations
+- Staging views for clean data
+- Mart tables for analytics
+
+### Versioning
+- DVC for data and model versioning
+- Parameters in configs/params.yaml
+
+---
+
+## Machine Learning Features
+
+- Ensemble model (XGBoost + RandomForest + LogisticRegression)
+- 14 engineered features
+- Optimized threshold (0.35) for better recall
+- Model persistence with joblib
+- Feature importance analysis
+- Decision logging
+
+---
+
+## Automation & Monitoring
+
+### Prefect Pipeline
+- Daily ETL at 2 AM
+- Weekly model retraining on Sundays
+- Health checks after each run
+
+### Monitoring
+- Prometheus metrics endpoint
+- Health check endpoints
+- Database connection monitoring
+
+### Database
+- Alembic migrations
+- Connection pooling
+- Automated PostgreSQL backups
+
+---
+
 ## Testing
 
 ```bash
@@ -181,6 +271,8 @@ pytest tests/ -v
 # With coverage
 pytest tests/ --cov=. --cov-report=html
 ```
+
+**56 tests passing** (100%)
 
 ---
 
@@ -208,9 +300,7 @@ docker run -p 8000:8000 -p 8501:8501 fraud-detection
 
 ---
 
-## Deployment
-
-### Environment Configuration
+## Environment Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -228,91 +318,6 @@ docker run -p 8000:8000 -p 8501:8501 fraud-detection
 - [ ] Use reverse proxy (nginx) for SSL termination
 - [ ] Set up monitoring (Prometheus/Grafana)
 - [ ] Configure automated backups
-
-### Running in Production
-
-```bash
-# With docker-compose
-ENV=production DATABASE_URL=postgresql://... docker-compose up -d
-
-# Or with environment file
-cp .env.production .env
-# Edit .env with production values
-docker-compose up -d
-```
-
----
-
-## Testing
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# With coverage
-pytest tests/ --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_fraud_model.py -v
-```
-
-### Test Coverage
-
-| Module | Tests | Description |
-|--------|-------|-------------|
-| claims_etl.py | 14 | ETL transformation, validation |
-| fraud_model.py | 22 | Model training, prediction |
-| api.py | ~10 | Endpoint testing |
-
----
-
-## What's Included
-
-### Data Pipeline
-- ETL with pandas/SQLAlchemy
-- Data validation rules
-- Connection pooling
-- Database indexes
-
-### Machine Learning
-- RandomForest classifier
-- Label encoding for categoricals
-- Model persistence with joblib
-
-### API
-- FastAPI with Pydantic
-- Rate limiting (slowapi)
-- In-memory caching
-- API key authentication
-
-### DevOps
-- Docker Compose
-- GitHub Actions CI/CD
-- 36 unit tests
-
-### Monitoring
-- Health check endpoints
-- Prometheus metrics endpoint
-
----
-
-## Project Structure
-
-```
-.
-├── api.py                 # FastAPI application
-├── claims_etl.py          # ETL pipeline
-├── fraud_model.py        # ML model training
-├── dashboard.py          # Streamlit dashboard
-├── main.py               # Orchestration
-├── requirements.txt       # Pinned dependencies
-│
-├── config/               # Settings
-├── scripts/             # Backup/restore
-├── pipeline/             # Utilities
-├── tests/                # Unit tests
-└── .github/workflows/   # CI/CD
-```
 
 ---
 
