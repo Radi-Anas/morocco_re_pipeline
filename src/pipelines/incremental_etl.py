@@ -11,7 +11,7 @@ import pandas as pd
 import json
 from datetime import datetime
 from sqlalchemy import create_engine, text
-from config.settings import DATABASE_URL
+from configs.settings import DATABASE_URL
 from typing import Optional, Dict
 
 logging.basicConfig(level=logging.INFO)

@@ -12,7 +12,7 @@ import logging
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
-from config.settings import DATABASE_URL
+from configs.settings import DATABASE_URL
 from typing import List, Dict, Any
 
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +53,7 @@ def extract_from_csv(file_path: str) -> pd.DataFrame:
 
 def get_engine():
     """Create and return a SQLAlchemy engine with connection pooling."""
-    from config.settings import POOL_CONFIG
+    from configs.settings import POOL_CONFIG
     try:
         engine = create_engine(
             DATABASE_URL,

@@ -24,8 +24,8 @@ from prefect.schedules import Schedule
 from prefect.schedules.clocks import CronClock
 from prefect.deployments import Deployment
 
-from claims_etl import run_etl
-from fraud_model import main as train_model
+from src.data.ingestion.claims_etl import run_etl
+from src.models.fraud_model import main as train_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ def validate_model_task():
     log = get_run_logger()
     log.info("Validating model...")
     
-    from fraud_model import load_data, prepare_features, train_model
+    from src.models.fraud_model import load_data, prepare_features, train_model
     import pandas as pd
     
     try:
@@ -98,7 +98,7 @@ def health_check_task():
     log = get_run_logger()
     log.info("Running health check...")
     
-    from config.settings import DATABASE_URL
+    from configs.settings import DATABASE_URL
     from sqlalchemy import create_engine, text
     
     try:

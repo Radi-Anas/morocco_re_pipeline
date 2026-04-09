@@ -16,7 +16,7 @@ import pandas as pd
 import plotly.express as px
 from sqlalchemy import create_engine, text
 
-from config.settings import DATABASE_URL
+from configs.settings import DATABASE_URL
 
 st.set_page_config(
     page_title="Insurance Fraud Dashboard",

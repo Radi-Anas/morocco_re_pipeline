@@ -6,7 +6,7 @@ Unit tests for claims ETL pipeline.
 import pytest
 import pandas as pd
 import numpy as np
-from claims_etl import transform_claims, extract_from_csv
+from src.data.ingestion.claims_etl import transform_claims, extract_from_csv
 
 
 class TestExtractFromCSV:

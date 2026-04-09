@@ -7,7 +7,7 @@ import pytest
 import pandas as pd
 import numpy as np
 import os
-from fraud_model import (
+from src.models.fraud_model import (
     load_data, 
     prepare_features, 
     train_model, 

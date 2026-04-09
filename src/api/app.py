@@ -32,7 +32,7 @@ import logging
 import json
 import hashlib
 
-from config.settings import DATABASE_URL, APP_CONFIG
+from configs.settings import DATABASE_URL, APP_CONFIG
 
 # Rate limiting
 from slowapi import Limiter
@@ -152,7 +152,7 @@ def get_db_connection():
 def get_model():
     """Load fraud detection model."""
     try:
-        from fraud_model import load_model
+        from src.models.fraud_model import load_model
         return load_model()
     except Exception as e:
         logger.error(f"Model load failed: {e}")
@@ -226,7 +226,7 @@ def predict_fraud(claim_data: dict, request: Request) -> dict:
         if model_data is None:
             raise HTTPException(status_code=503, detail="Model not available")
         
-        from fraud_model import predict_fraud
+        from src.models.fraud_model import predict_fraud
         result = predict_fraud(claim_data, model_data)
         
         prediction_result = {
@@ -269,7 +269,7 @@ def predict_batch(claims: List[dict], request: Request) -> dict:
         if model_data is None:
             raise HTTPException(status_code=503, detail="Model not available")
         
-        from fraud_model import predict_fraud
+        from src.models.fraud_model import predict_fraud
         
         results = []
         for claim_data in claims:
@@ -310,7 +310,7 @@ def get_model_metrics(x_api_key: str = Header(None)) -> dict:
             raise HTTPException(status_code=503, detail="Model not available")
         
         # Load data and retrain to get fresh metrics
-        from fraud_model import load_data, prepare_features, train_model
+        from src.models.fraud_model import load_data, prepare_features, train_model
         
         df = load_data()
         X, y, encoders, feature_names = prepare_features(df)

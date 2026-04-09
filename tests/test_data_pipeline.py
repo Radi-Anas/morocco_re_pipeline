@@ -7,9 +7,9 @@ Tests the complete data flow: API → ETL → Database → Prediction.
 import pytest
 import pandas as pd
 from unittest.mock import Mock, patch
-from claims_etl import transform_claims, validate_data
-from pipeline.schema_registry import validate_incoming_claim
-from pipeline.incremental_etl import ETLWatermark
+from src.data.ingestion.claims_etl import transform_claims, validate_data
+from src.pipelines.schema_registry import validate_incoming_claim
+from src.pipelines.incremental_etl import ETLWatermark
 
 
 class TestDataFlow:
